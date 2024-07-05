@@ -1,0 +1,6 @@
+local number = 5
+if number > 10 then 
+print("Well Done!")
+else
+print("Not Enough!")
+end
