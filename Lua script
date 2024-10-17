@@ -1,6 +1,78 @@
-local number = 5
-if number > 10 then 
-print("Well Done!")
-else
-print("Not Enough!")
+-- Variables
+local RS = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
+
+local minionModel = RS:WaitForChild("MeleeMinion")  -- Minion model in ReplicatedStorage
+local spawnPoint = Workspace:WaitForChild("MinionsSpawnPoint") -- Spawn point in the game world
+local towers = Workspace:WaitForChild("middleTower1"):GetChildren() -- Towers as waypoints (make sure to parent all towers under a model named "Towers")
+
+-- Settings
+local spawnInterval = 10  -- Time between spawning each wave of minions
+local minionsPerWave = 3 -- Number of minions per wave
+local minionSpeed = 5  -- Speed at which minions move
+local spacingZ = 8       -- Distance between each minion in the wave along the Z-axis (front-back spacing)
+
+-- Function to make a minion move along the tower waypoints
+local function moveMinion(minion, waypoints)
+	local minionHumanoidRootPart = minion:WaitForChild("HumanoidRootPart")
+
+	-- Iterate through all the waypoints (towers)
+	for i, tower in ipairs(waypoints) do
+		-- Ensure the tower exists (in case it was destroyed)
+		if tower and tower:IsDescendantOf(Workspace) then
+			local goal = {CFrame = tower.CFrame}
+			local distance = (tower.Position - minionHumanoidRootPart.Position).Magnitude
+			local tweenInfo = TweenInfo.new(distance / minionSpeed, Enum.EasingStyle.Linear)
+
+			local tween = TweenService:Create(minionHumanoidRootPart, tweenInfo, goal)
+			tween:Play()
+
+			-- Wait for the tween to finish
+			tween.Completed:Wait()
+		end
+	end
+
+	-- When all waypoints are reached, you can add code for attacking the base, etc.
+end
+
+-- Function to spawn minions
+local function spawnMinion()
+	for i = 1, minionsPerWave do
+		local newMinion = minionModel:Clone()
+		newMinion.Parent = Workspace
+
+		-- Calculate position for staggered minion spacing (front-back along Z-axis)
+		local spawnOffset = Vector3.new(0, 0, (i - 1) * -spacingZ)  -- -spacingZ to stagger them back
+		local spawnCFrame = spawnPoint.CFrame * CFrame.new(spawnOffset)
+		newMinion:SetPrimaryPartCFrame(spawnCFrame)
+
+		-- Move the minion along the path (towers)
+		coroutine.wrap(function()
+			moveMinion(newMinion, towers)
+		end)()
+	end
+end
+
+-- Function to remove a tower from the list when it is destroyed
+local function onTowerDestroyed(tower)
+	for i, t in ipairs(towers) do
+		if t == tower then
+			table.remove(towers, i) -- Remove the destroyed tower from the waypoint list
+			break
+		end
+	end
+end
+
+-- Event listener for when a tower is destroyed
+for _, tower in pairs(towers) do
+	tower.Destroying:Connect(function()
+		onTowerDestroyed(tower)
+	end)
+end
+
+-- Continuously spawn waves of minions
+while true do
+	spawnMinion()
+	wait(spawnInterval)
 end
